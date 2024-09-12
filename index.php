@@ -1,11 +1,8 @@
 <?php
 session_start();
-
-require 'config.php';  // Inherit database connection from config file
+require 'config.php'; // Connect to the database
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-
-    // Insert company information into the database
     if (isset($_POST['register_company'])) {
         $company_name = $_POST['company_name'];
         $address = $_POST['address'];
@@ -13,57 +10,64 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $email = $_POST['email'];
         $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
 
-        $sql = "INSERT INTO companies (company_name, address, phone_number, email, password) 
-                VALUES ('$company_name', '$address', '$phone_number', '$email', '$password')";
+        $stmt = $conn->prepare("INSERT INTO companies (company_name, address, phone_number, email, password) VALUES (?, ?, ?, ?, ?)");
+        $stmt->bind_param("sssss", $company_name, $address, $phone_number, $email, $password);
 
-        if ($conn->query($sql) === TRUE) {
-            echo "Company Saved.";
+        if ($stmt->execute()) {
+            echo "Company saved.";
         } else {
-            echo "Error: " . $sql . "<br>" . $conn->error;
+            echo "Error: " . $stmt->error;
         }
-
-    // Insert sales agent information into the database
-    } elseif (isset($_POST['register_specialist'])) {
+        $stmt->close();
+    } elseif (isset($_POST['register_agent'])) {
         $name = $_POST['name'];
         $email = $_POST['email'];
+        $phone_number = $_POST['phone_number'];
         $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
-        $company_id = $_POST['company_id'];
+        $company_id = $_SESSION['user']['id']; 
 
-        $sql = "INSERT INTO sales_specialists (name, email,  password_hash, company_id) 
-                VALUES ('$name', '$email',  '$password', '$company_id')";
+        $stmt = $conn->prepare("INSERT INTO sales_agents (name, email, password_hash, company_id, phone_number) VALUES (?, ?, ?, ?, ?)");
+        $stmt->bind_param("sssis", $name, $email, $password, $company_id, $phone_number);
 
-        if ($conn->query($sql) === TRUE) {
+        if ($stmt->execute()) {
             echo "Sales agent saved.";
         } else {
-            echo "Error: " . $sql . "<br>" . $conn->error;
+            echo "Error: " . $stmt->error;
         }
-
-    // Login company or sales agent
+        $stmt->close();
     } elseif (isset($_POST['login'])) {
         $email = $_POST['email'];
         $password = $_POST['password'];
 
-        $company_sql = "SELECT * FROM companies WHERE email='$email'";
-        $specialist_sql = "SELECT * FROM sales_specialists WHERE email='$email'";
-        $company_result = $conn->query($company_sql);
-        $specialist_result = $conn->query($specialist_sql);
+        $company_sql = "SELECT * FROM companies WHERE email=?";
+        $agent_sql = "SELECT * FROM sales_agents WHERE email=?";
+
+        $stmt = $conn->prepare($company_sql);
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $company_result = $stmt->get_result();
+
+        $stmt = $conn->prepare($agent_sql);
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $agent_result = $stmt->get_result();
 
         if ($company_result->num_rows > 0) {
             $user = $company_result->fetch_assoc();
             if (password_verify($password, $user['password'])) {
                 $_SESSION['user'] = $user;
                 $_SESSION['role'] = 'company';
-                header("Location: /sales-agents");
+                header("Location: /YOUR_EXTENSION");
                 exit();
             } else {
                 echo "Wrong password.";
             }
-        } elseif ($specialist_result->num_rows > 0) {
-            $user = $specialist_result->fetch_assoc();
+        } elseif ($agent_result->num_rows > 0) {
+            $user = $agent_result->fetch_assoc();
             if (password_verify($password, $user['password_hash'])) {
                 $_SESSION['user'] = $user;
-                $_SESSION['role'] = 'specialist';
-                header("Location: /sales-agents");
+                $_SESSION['role'] = 'agent';
+                header("Location: /YOUR_EXTENSION");
                 exit();
             } else {
                 echo "Wrong password.";
@@ -71,185 +75,166 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } else {
             echo "No user found.";
         }
-
-    // Insert lead information into the database
+        $stmt->close();
     } elseif (isset($_POST['add_lead'])) {
         $sales_specialist_id = $_POST['sales_specialist_id'];
         $name = $_POST['name'];
         $phone = $_POST['phone'];
         $email = $_POST['email'];
 
-        $sql = "INSERT INTO leads (sales_specialist_id, name, phone, email) 
-                VALUES ('$sales_specialist_id', '$name', '$phone', '$email')";
+        $stmt = $conn->prepare("INSERT INTO leads (sales_specialist_id, name, phone, email) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("isss", $sales_specialist_id, $name, $phone, $email);
 
-        if ($conn->query($sql) === TRUE) {
+        if ($stmt->execute()) {
             echo "Lead saved.";
         } else {
-            echo "Error: " . $sql . "<br>" . $conn->error;
+            echo "Error: " . $stmt->error;
         }
-    }
-    elseif (isset($_POST['logout'])) {
+        $stmt->close();
+    } elseif (isset($_POST['logout'])) {
         session_unset(); 
         session_destroy(); 
-        header("Location: /sales-agents"); 
+        header("Location: /YOUR_EXTENSION"); 
         exit();
     }
 }
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lead Management</title>
     <link rel="stylesheet" href="styles.css">
-<body>
+
+</head>
+    <body>
+    <div>
     <div class="navbar">
-    <img src="ENTER_YOUR_COMPANY_LOGO" alt="company_logo">
-</div>
+        <img src="YOUR_LOGO_URL" alt="YOUR_COMPANY_NAME">
+    </div>
 
-<?php if (!isset($_SESSION['user'])): ?>
-    <h1>Lead Management</h1>
-    
-    <!-- Company Register Form -->
-    <form method="POST">
-        <h3>Company Register</h3>
-        <input type="text" name="company_name" placeholder="Company Name" required>
-        <input type="text" name="address" placeholder="Address">
-        <input type="text" name="phone_number" placeholder="Phone number">
-        <input type="email" name="email" placeholder="E-mail" required>
-        <input type="password" name="password" placeholder="Password" required>
-        <button type="submit" name="register_company">Save company</button>
-    </form>
+    <?php if (!isset($_SESSION['user'])): ?>
+        <h1>Sales Agent and Company Login</h1>
 
-     <!-- Sales Agent Register Form -->
-    <form method="POST">
-        <h3>Sales Agent Register</h3>
-        <input type="text" name="name" placeholder="Name" required>
-        <input type="email" name="email" placeholder="E-mail" required>
-        <input type="text" name="phone_number" placeholder="Phone number">
-        <input type="password" name="password" placeholder="Password" required>
-        <select name="company_id">
-            <option value="">Select Company</option>
-            <?php
-            $companies = $conn->query("SELECT id, company_name FROM companies");
-            while ($row = $companies->fetch_assoc()) {
-                echo "<option value='{$row['id']}'>{$row['company_name']}</option>";
-            }
-            ?>
-        </select>
-        <button type="submit" name="register_specialist">Save Sales Agent</button>
-    </form>
+        <form method="POST">
+            <h3>Register Company</h3>
+            <input type="text" name="company_name" placeholder="Company name" required>
+            <input type="text" name="address" placeholder="Address">
+            <input type="text" name="phone_number" placeholder="Phone number">
+            <input type="email" name="email" placeholder="E-mail" required>
+            <input type="password" name="password" placeholder="Password" required>
+            <button type="submit" name="register_company">Save company</button>
+        </form>
 
-    <!-- Login Form -->
-    <form method="POST">
-        <h3>Login</h3>
-        <input type="email" name="email" placeholder="E-mail" required>
-        <input type="password" name="password" placeholder="Password" required>
-        <button type="submit" name="login">Login</button>
-    </form>
+        <form method="POST">
+            <h3>Login</h3>
+            <input type="email" name="email" placeholder="E-mail" required>
+            <input type="password" name="password" placeholder="Password" required>
+            <button type="submit" name="login">Login</button>
+        </form>
 
-<?php else: ?>
-    <?php $user = $_SESSION['user']; ?>
-    <?php
-    if ($_SESSION['role'] == 'specialist') {
-        $specialist_id = $_SESSION['user']['id'];
-        $sql = "SELECT companies.company_name, companies.address, companies.phone_number 
-                FROM companies 
-                JOIN sales_specialists ON companies.id = sales_specialists.company_id 
-                WHERE sales_specialists.id = $specialist_id";
-        $result = $conn->query($sql);
+    <?php else: ?>
+        <?php $user = $_SESSION['user']; ?>
 
-        if ($result->num_rows > 0) {
-            $company = $result->fetch_assoc();
-            $company_name = $company['company_name'];
-            $address = $company['address'];
-            $phone_number = $company['phone_number'];
-        } else {
-            $company_name = "No company found";
-            $address = "No address found";
-            $phone_number = "No phone number found";
-        }
-    } else {
-        $company_name = $_SESSION['user']['company_name'];
-        $address = $_SESSION['user']['address'];
-        $phone_number = $_SESSION['user']['phone_number'];
-    }
-    ?>
+        <h2>Welcome, <?php echo ($_SESSION['role'] == 'company') ? $user['company_name'] : $user['name']; ?></h2>
+        
+        
 
-    <h2>Company: <?php echo $company_name; ?></h2>
-    <?php echo $phone_number; ?>
-    
-
-    <div class="container">
-        <div class="form-container representatives-leads-container">
-            <h3>Add Lead</h3>
-            <form method="POST">
+        <div class="container">
+            <div class="form-container">
                 <?php if ($_SESSION['role'] == 'company'): ?>
-                    <select name="sales_specialist_id" required>
-                        <option value="">Select sales agent</option>
-                        <?php
-                        $specialists = $conn->query("SELECT id, name FROM sales_specialists WHERE company_id = {$user['id']}");
-                        while ($row = $specialists->fetch_assoc()) {
-                            echo "<option value='{$row['id']}'>{$row['name']}</option>";
-                        }
-                        ?>
-                    </select>
-                <?php elseif ($_SESSION['role'] == 'specialist'): ?>
-                    <input type="hidden" name="sales_specialist_id" value="<?php echo $_SESSION['user']['id']; ?>">
-                    <p>Sales agent: <?php echo $_SESSION['user']['name']; ?></p>
+                    <form method="POST">
+                        <h3>Add sales agent</h3>
+                        <input type="text" name="name" placeholder="Name" required>
+                        <input type="number" name="phone_number" placeholder="Phone number" required>
+
+                        <input type="email" name="email" placeholder="E-mail" required>
+                        <input type="password" name="password" placeholder="Password" required>
+                        <button type="submit" name="register_agent">Save sales agent</button>
+                    </form>
                 <?php endif; ?>
 
-                <input type="text" name="name" placeholder="Name" required>
-                <input type="text" name="phone" placeholder="Phone number">
-                <input type="email" name="email" placeholder="E-mail">
-                <button type="submit" name="add_lead">Add lead</button>
-            </form>
-        </div>
-
-        <div class="list-container representatives-leads-container">
-            <h3>Sales Agents and Leads</h3>
-            <table>
-                <tbody>
-                    <?php
-                    if ($_SESSION['role'] == 'company') {
-                        $specialists = $conn->query("SELECT * FROM sales_specialists WHERE company_id = {$_SESSION['user']['id']}");
-                        while ($specialist = $specialists->fetch_assoc()) {
-                            echo "<tr>";
-                            echo "<td colspan='3' style='font-weight: bold;'>{$specialist['name']}</td>";
-                            echo "</tr>";
-
-                            $leads = $conn->query("SELECT * FROM leads WHERE sales_specialist_id = {$specialist['id']}");
-                            while ($lead = $leads->fetch_assoc()) {
-                                echo "<tr>";
-                                echo "<td>{$lead['name']}</td>";
-                                echo "<td>{$lead['email']}</td>";
-                                echo "<td>{$lead['phone']}</td>";
-                                echo "</tr>";
+                <form method="POST">
+                    <h3>Add lead</h3>
+                    <?php if ($_SESSION['role'] == 'company'): ?>
+                        <select name="sales_specialist_id" required>
+                            <option value="">Choose sales agent</option>
+                            <?php
+                            $agents = $conn->query("SELECT id, name FROM sales_agents WHERE company_id = {$user['id']}");
+                            while ($row = $agents->fetch_assoc()) {
+                                echo "<option value='{$row['id']}'>{$row['name']}</option>";
                             }
-                        }
-                    } elseif ($_SESSION['role'] == 'specialist') {
-                        $specialist_id = $_SESSION['user']['id'];
-                        $leads = $conn->query("SELECT * FROM leads WHERE sales_specialist_id = $specialist_id");
-                        while ($lead = $leads->fetch_assoc()) {
-                            echo "<tr>";
-                            echo "<td>{$lead['name']}</td>";
-                            echo "<td>{$lead['email']}</td>";
-                            echo "<td>{$lead['phone']}</td>";
-                            echo "</tr>";
-                        }
-                    }
-                    ?>
-                </tbody>
-            </table>
+                            ?>
+                        </select>
+                    <?php else: ?>
+                        <input type="hidden" name="sales_specialist_id" value="<?php echo $user['id']; ?>">
+                    <?php endif; ?>
+                    <input type="text" name="name" placeholder="Name" required>
+                    <input type="number" name="phone" placeholder="Phone number">
+                    <input type="email" name="email" placeholder="E-mail" required>
+                    <button type="submit" name="add_lead">Add lead</button>
+                </form>
+            </div>
 
-            <form method="POST" style="width: 130px;">
-                <button type="submit"  style="width: 130px;" name="logout">Logout</button>
-            </form>
-        </div>
-    </div>
-<?php endif; ?>
+            <div class="lead-container">
+    <h2>Lead List</h2>
+    <?php if ($_SESSION['role'] == 'company'): ?>
+        <?php
+        $agents = $conn->query("SELECT * FROM sales_agents WHERE company_id = {$user['id']}");
+        while ($agent = $agents->fetch_assoc()) {
+            
+            echo "<h3>{$agent['name']}</h3>";
+            echo "<p>{$agent['email']}</p>";
+            echo "<p>{$agent['phone_number']}</p>";
+            $leads = $conn->query("SELECT * FROM leads WHERE sales_specialist_id = {$agent['id']}");
+            if ($leads->num_rows > 0) {
+                echo "<table border='1' cellpadding='10'>";
+                echo "<tr><th>Name</th><th>Phone number</th><th>Email</th></tr>";
+                while ($lead = $leads->fetch_assoc()) {
+                    echo "<tr>";
+                    echo "<td>{$lead['name']}</td>";
+                    echo "<td>{$lead['phone']}</td>";
+                    echo "<td>{$lead['email']}</td>";
+                    echo "</tr>";
+                }
+                echo "</table>";
+            } else {
+                echo "<p>No lead.</p>";
+            }
+        }
+        ?>
+    <?php else: ?>
+        <?php
+        $leads = $conn->query("SELECT * FROM leads WHERE sales_specialist_id = {$user['id']}");
+        if ($leads->num_rows > 0) {
+            echo "<table border='1' cellpadding='10'>";
+            echo "<tr><th>Name</th><th>Phone number</th><th>Email</th></tr>";
+            while ($lead = $leads->fetch_assoc()) {
+                echo "<tr>";
+                echo "<td>{$lead['name']}</td>";
+                echo "<td>{$lead['phone']}</td>";
+                echo "<td>{$lead['email']}</td>";
+                echo "</tr>";
+            }
+            echo "</table>";
+        } else {
+            echo "<p>No lead.</p>";
+        }
+        ?>
+    <?php endif; ?>
+</div>
+</div>
+
+        <form method="POST" style = "width: 10%; "> 
+            <button type="submit" name="logout" style = "background-color: #1b1b1b;">Logout</button>
+        </form>
+
+        
+    <?php endif; ?>
+    
 
 </body>
+
 </html>
