@@ -61,10 +61,11 @@ To run this project, you will need the following:
      ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
      ````
      ````
-     CREATE TABLE sales_specialists (
+     CREATE TABLE sales_agents (
         id INT(11) NOT NULL AUTO_INCREMENT,
         name VARCHAR(255) COLLATE latin1_swedish_ci NOT NULL,
         email VARCHAR(255) COLLATE latin1_swedish_ci NOT NULL,
+        phone_number VARCHAR(20) COLLATE latin1_swedish_ci DEFAULT NULL,
         password_hash VARCHAR(255) COLLATE latin1_swedish_ci NOT NULL,
         company_id INT(11) NOT NULL,
         PRIMARY KEY (id),
