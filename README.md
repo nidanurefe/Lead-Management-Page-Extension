@@ -6,8 +6,10 @@ This project is a lead management system built using PHP, allowing users to subm
 
 - **Lead Form:** Users can add lead information including first name, last name, email, phone number, and address.
 - **Database Integration:** Lead information is stored in a MySQL database.
+- **Hubspot Integration:** Lead information is stored in hubspot.
 - **Dashboard:** Displays a list of existing leads alongside the lead submission form.
 - **Error and Success Messages:** Provides instant feedback to users during form submission (e.g., invalid inputs or successful submissions).
+- **Forgot Password Feature:** Allows users to reset their password by submitting their email. Sends a password reset email to the user with a secret code to reset their password
 - **Responsive Design:** CSS ensures the layout adapts to different screen sizes and mobile devices.
 
 ## Requirements
@@ -18,6 +20,7 @@ To run this project, you will need the following:
 - MySQL Database
 - Apache or Nginx web server
 - Internet browser for accessing the interface
+- Hubspot api if you'll save into it
 
 ## Installation
 
